@@ -32,6 +32,31 @@ typedef struct
 uint8_t tile[86 * 48 * 2];
 
 
+uint32_t calcChecksum(FILE* file)
+{
+    const size_t BLOCK_SIZE = 4096;
+    void* data = malloc(BLOCK_SIZE);
+    if (!data) abort();
+
+    fseek(file, 0, SEEK_END);
+    const size_t fileSize = ftell(file);
+    fseek(file, 0, SEEK_SET);
+
+    uint32_t checksum = 0;
+    size_t i;
+    for (i = 0; i < fileSize; i += BLOCK_SIZE)
+    {
+        const size_t count = fread(data, 1, BLOCK_SIZE, file);
+        checksum = crc32(checksum, data, count);
+    }
+
+    free(data);
+    data = NULL;
+    
+    return checksum;
+}
+
+
 int main(int argc, char *argv[])
 {
     if (argc < 4)
@@ -132,24 +157,10 @@ int main(int argc, char *argv[])
         file = fopen(FIRMWARE, "ab+");
         if (!file) abort();
 
-        fseek(file, 0, SEEK_END);
-        size_t file_size = ftell(file);
-        fseek(file, 0, SEEK_SET);
-
-        const size_t BLOCK_SIZE = 4096;
-
-        void* data = malloc(BLOCK_SIZE);
-        if (!data) abort();
-
-        uint32_t checksum = 0;
-        for(int i = 0; i < (file_size); i += BLOCK_SIZE)
-        {
-            count = fread(data, 1, BLOCK_SIZE, file);
-            checksum = crc32(checksum, data, count);
-        }
-
+        const uint32_t checksum = calcChecksum(file);
         printf("%s: checksum=%#010x\n", __func__, checksum);
 
+        fseek(file, 0, SEEK_END);
         fwrite(&checksum, sizeof(checksum), 1, file);
         fclose(file);
     }
